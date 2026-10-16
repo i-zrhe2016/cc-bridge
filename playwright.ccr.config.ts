@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'ccr-integration.spec.ts',
+  testMatch: ['ccr-integration.spec.ts', 'admin-integration.spec.ts'],
   workers: 1,
   fullyParallel: false,
   reporter: 'list',
@@ -19,6 +19,7 @@ export default defineConfig({
         CCR_GATEWAY_URL: 'http://127.0.0.1:3466',
         CCR_WEB_AUTH_TOKEN: 'integration-only-ccr-management-token',
         CC_BRIDGE_ADMIN_TOKEN: 'integration-only-workspace-admin-token',
+        CC_BRIDGE_OPERATIONS_TOKEN: 'integration-only-operations-admin-token',
         CC_BRIDGE_PUBLIC_URL: 'http://127.0.0.1:3110',
       },
     },
