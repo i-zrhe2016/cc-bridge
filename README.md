@@ -4,6 +4,8 @@
 
 CC Bridge 将 GPT 接入 Claude Code。项目基于 [ixartz/SaaS-Boilerplate](https://github.com/ixartz/SaaS-Boilerplate) 的精简基础，使用 Next.js、React、TypeScript、Tailwind CSS v4 和 shadcn/ui。模板版本与许可见 [模板来源](docs/template-source.md)。
 
+新增独立管理后台 `/admin`：多连接、多密钥、用量汇总与网关控制，使用独立后台口令；配置与使用见 [管理后台说明](docs/admin.md)。
+
 ## 本地运行
 
 需要 Node.js 24 和 Bun，无需环境变量、认证密钥或数据库。
@@ -25,13 +27,14 @@ bun run start
 ## 页面与模拟认证
 
 - `/`：保留 CC Bridge 官网、10 种语言及配置复制。
-- `/dashboard`：无需登录的用户工作台原型，支持 GPT 连接、演示桥接密钥、配置复制与示例用量；状态仅在当前页面内存中，刷新重置，不发起模型请求。
+- `/admin`：配置独立后台口令与 CCR 后启用的真实管理后台，未配置时显示未启用。
+- `/dashboard`：配置 CCR 时使用管理口令进入真实工作台；未配置时为无需登录的用户工作台原型，支持 GPT 连接、演示桥接密钥、配置复制与示例用量；状态仅在当前页面内存中，刷新重置，不发起模型请求。
 - `/auth/sign-in`：居中卡片式 Google 登录注册统一入口。
 - `/auth`、`/auth/sign-up`、`/sign-in`、`/sign-up`：重定向至统一入口，兼容登录注册子路径。
 
 点击「使用 Google 继续」后显示约 800 毫秒加载状态，再显示模拟成功提示。不会连接 Google、调用认证 API、保存账号或创建会话；刷新后恢复初始状态。此页面不是可用于生产的认证系统。
 
-旧模板后台、示例 API、Clerk、数据库、组织管理及监控已移除。启动和构建不执行数据库迁移，也不加载外部字体。
+旧模板示例后台和示例 API、Clerk、数据库、组织管理及监控已移除；新管理后台使用独立口令认证与 CCR 持久化。启动和构建不执行数据库迁移，也不加载外部字体。
 
 ## 浏览器验收
 

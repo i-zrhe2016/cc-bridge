@@ -2,7 +2,7 @@
 
 真实 CCR 后端的安装、环境变量和 systemd 配置见 [CCR 接入说明](ccr-integration.md)。以下无环境变量运行方式为演示模式；当前服务器已启用真实后端模式。
 
-使用 Node.js 24。页面无需认证密钥、数据库或监控环境变量，部署后登录仍为本地模拟。
+使用 Node.js 24。未配置 CCR 时运行演示模式；真实工作台和管理后台分别使用独立口令，Google 登录入口仍为本地模拟。
 
 ## Vercel
 
@@ -46,22 +46,32 @@ journalctl -u cc-bridge -n 50 --no-pager
 
 ## 当前发布内容
 
-2026-10-16 22:26（Asia/Shanghai）恢复原版居中布局，桌面主内容保持最大 1000px 宽度、左右 32px 留白；手机保留 16px 留白。真实 CCR 工作台继续使用「我的 GPT、访问密钥、使用教程、使用统计」四栏。访问 `http://192.168.42.130:8354/dashboard`，使用管理口令进入；原 Google 登录仍为演示。
+2026-10-17 00:32（Asia/Shanghai）发布独立管理后台，采用 Kiranism Next Shadcn Dashboard Starter。访问 [管理后台](http://192.168.42.130:8354/admin)，使用后台专用口令登录；原 [用户工作台](http://192.168.42.130:8354/dashboard) 继续使用原管理口令。功能与边界见 [后台说明](admin.md)。
 
-- 当前发布：`/var/lib/cc-bridge/releases/20261016T142624Z`；构建使用 Node.js 24 和 standalone，发布包没有指向工作区或内存盘的外部符号链接。
-- 上一发布：`/var/lib/cc-bridge/releases/20261016T141606Z`，所有旧发布保留。
-- CCR 3.1.3：`/opt/cc-bridge-ccr`，独立用户 `cc-bridge-ccr`，服务 `cc-bridge-ccr.service` 已启用开机启动；数据持久化到 `/var/lib/cc-bridge-ccr`。
-- 生产配置：`/etc/cc-bridge/workspace.env` 与 `/etc/cc-bridge/ccr.env`，均为 root 所有、权限 600。工作台管理口令单独保存在 `/etc/cc-bridge/admin-token`，可在服务器执行 `sudo cat /etc/cc-bridge/admin-token` 获取。
-- 当前未配置 GPT 上游，因此 CCR 管理服务正常运行，模型网关处于等待配置状态；在工作台保存有效上游连接后自动启动。内部管理端口 3458 仅监听 `127.0.0.1`，3456、3457 尚未监听。
-- 已通过线上浏览器管理登录、刷新会话保持、退出、Origin 拦截、375/1440px 布局和内部端口不可从局域网访问的检查；未使用真实 GPT 密钥或产生模型费用。
+- 当前发布：`/var/lib/cc-bridge/releases/20261016T161920Z`，Node.js 24 standalone 产物，包含静态资源及第三方许可证，无指向工作区或内存盘的外部符号链接。
+- 上一发布：`/var/lib/cc-bridge/releases/20261016T142624Z`；历史发布全部保留。
+- 后台功能：多连接、多访问密钥、7/30 天用量统计、网关状态与启停/重启，支持 375/768/1440px 布局。
+- 后台口令：`/etc/cc-bridge/operations-token`，root 所有、权限 600；对应运行环境变量为 `CC_BRIDGE_OPERATIONS_TOKEN`。与工作台口令及 CCR 管理令牌分别配置。
+- 运行配置：`/etc/cc-bridge/workspace.env`；部署前环境备份：`/etc/cc-bridge/workspace.env.before-admin-20261016T161920Z`，均为 root 所有、权限 600。
+- CCR 3.1.3：`/opt/cc-bridge-ccr`，服务 `cc-bridge-ccr.service`，数据目录 `/var/lib/cc-bridge-ccr`；本次发布不执行数据迁移。
+- 正式服务由 `cc-bridge.service` 运行，监听 `0.0.0.0:8354`；CCR 端口仅绑定回环地址。
+- 已完成临时端口与正式局域网地址的真实浏览器验收：后台页面和资源读取、独立登录及退出、会话隔离、Origin 拦截、原工作台登录、三种屏幕尺寸及无浏览器运行错误。发布验收不调用模型、不修改连接或访问密钥。
+- 发布前通过类型检查、Lint、生产构建、17 项页面回归和 2 项真实 CCR 集成测试。
+- 为腾出空间，仅清理可重新下载的 npm/浏览器缓存，并重新安装当前验收所需的浏览器；历史发布与 CCR 数据保留。
+
+获取后台口令：
+
+```bash
+sudo cat /etc/cc-bridge/operations-token
+```
 
 ## 回退当前发布
 
-部署记录保存在 `/etc/cc-bridge/deployment.json`。回退到本次布局调整前、已接入 CCR 的工作台：
+部署记录位于 `/etc/cc-bridge/deployment.json`。回退到新增后台之前的发布：
 
 ```bash
-sudo ln -sfn /var/lib/cc-bridge/releases/20261016T141606Z /var/lib/cc-bridge/current
+sudo ln -sfn /var/lib/cc-bridge/releases/20261016T142624Z /var/lib/cc-bridge/current
 sudo systemctl restart cc-bridge
 ```
 
-保留 CCR 数据目录和生产凭证文件，回退不删除已保存的数据。
+保留 CCR 数据目录和生产凭证文件。回退旧发布不会恢复后续在后台修改的 CCR 配置；如需恢复数据，应使用对应备份。关闭后台可移除 `CC_BRIDGE_OPERATIONS_TOKEN` 后重启服务。部署前的环境文件及发布记录已分别备份。

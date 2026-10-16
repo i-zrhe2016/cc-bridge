@@ -26,3 +26,18 @@
 - Tailwind 样式沿用上游语义色与菜单类，适配现有 Tailwind v4 token。产品内容、表单、密钥、配置和用量继续使用 CC Bridge 模拟业务逻辑。
 
 上游完整 MIT 版权与许可文本保存在 `docs/licenses/Apptension-MIT.txt`，发布时随 licenses 目录一起保留；两个 Dockerfile 均复制根许可证与第三方 licenses，构建上下文已放行该目录。根目录 LICENSE 与历史许可证继续保留，反映各部分实际来源。
+
+## 独立管理后台：Kiranism Next Shadcn Dashboard Starter
+
+新增 `/admin` 采用 [Kiranism/next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter)，锁定提交 `7705dfc0d13889e45c26a55ad5908da6a7a9a605`。现有项目基础、官网和用户工作台不迁移。
+
+实际源码适配：
+
+- 上游 `src/components/layout/app-sidebar.tsx` 的品牌区、分组导航、当前路由高亮与底部操作，以及 `header.tsx` 的 sticky header、侧栏触发器和路径信息适配至 `src/features/admin/layout/shell.tsx`。移除 Clerk 用户/组织、通知、搜索和多主题入口，移动端采用 Base UI Dialog 导航，桌面支持折叠。
+- 上游 `src/components/layout/page-container.tsx` 的页面容器和标题/操作区适配至后台同名文件；上游 `src/components/ui/card.tsx` 移入 `src/features/admin/card.tsx`，仅调整 class helper 导入与项目格式。
+- 上游 `src/components/ui/table/data-table.tsx` 与 `data-table-pagination.tsx` 的 TanStack 表头/行渲染、空状态、计数、页大小及翻页逻辑适配至 `src/features/admin/data-table.tsx`。改用原生语义表格与横向滚动，移除固定列、选择和批量操作；加入当前实例小规模资源的客户端搜索与排序。
+- 上游 `src/features/overview/components/area-graph.tsx` 的 Recharts AreaChart、网格、坐标、点状填充与 Card 结构适配至 `src/features/admin/usage.tsx`，以真实请求和 Token 数据替换样例。
+
+按需使用上游 Base UI、TanStack Query/Table/Form、Zod、Recharts 与 Tabler Icons，保留现有 Next.js、React、Tailwind、TypeScript 版本及 ESLint/构建方式；未引入上游 Clerk、计费、组织、Sentry、示例数据、全局主题或工具链。后台 Provider、组件与样式限定在后台路由，TanStack Form 负责编辑表单状态，Zod 在服务端校验输入。
+
+Kiranism 完整 MIT 文本继续保存在 `docs/licenses/Kiranism-MIT.txt`，随既有镜像许可证目录发布。后台认证、CCR 适配、保护规则及部署说明见 [独立管理后台](admin.md)。

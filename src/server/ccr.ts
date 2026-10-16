@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { validateConnection } from '@/features/workspace/demo-service';
 
 // CCR 3.1.3 management RPC. Preserve unowned settings and configRevision.
-interface Provider {
+export interface Provider {
   id?: string;
   name: string;
   api_base_url?: string;
@@ -12,8 +12,8 @@ interface Provider {
   models: string[];
   [key: string]: unknown;
 }
-interface ClientKey { id: string; name?: string; key: string; createdAt: string; expiresAt?: string }
-interface Config {
+export interface ClientKey { id: string; name?: string; key: string; createdAt: string; expiresAt?: string }
+export interface Config {
   Providers: Provider[];
   APIKEYS: ClientKey[];
   configRevision?: string;
@@ -21,8 +21,8 @@ interface Config {
 }
 interface Usage { series: { label: string; requestCount: number; inputTokens: number; outputTokens: number }[] }
 
-const providerId = 'cc-bridge-workspace';
-const keyId = 'cc-bridge-workspace-key';
+export const providerId = 'cc-bridge-workspace';
+export const keyId = 'cc-bridge-workspace-key';
 
 export class WorkspaceError extends Error {
   constructor(public status: number, message: string) {
@@ -42,7 +42,7 @@ export function internalUrl(variable: 'CCR_MANAGEMENT_URL' | 'CCR_GATEWAY_URL') 
   return url;
 }
 
-async function rpc<T>(method: string, args: unknown[] = []): Promise<T> {
+export async function rpc<T>(method: string, args: unknown[] = []): Promise<T> {
   const token = process.env.CCR_WEB_AUTH_TOKEN;
   if (!token) {
     throw new WorkspaceError(503, '服务尚未配置。');
@@ -127,11 +127,16 @@ function parseInput(value: unknown, editing: boolean): ConnectionInput {
 }
 
 // Serialize read-modify-write operations in this single-server deployment.
-let pending: Promise<unknown> = Promise.resolve();
-export function mutate(action: WorkspaceAction): Promise<WorkspaceSnapshot> {
-  const next = pending.then(() => apply(action));
-  pending = next.catch(() => undefined);
+// Next.js can load API routes into separate module bundles; keep the queue process-wide.
+const ccrState = globalThis as typeof globalThis & { ccBridgePending?: Promise<unknown> };
+export function serializeCcr<T>(operation: () => Promise<T>): Promise<T> {
+  const next = (ccrState.ccBridgePending || Promise.resolve()).then(operation);
+  ccrState.ccBridgePending = next.catch(() => undefined);
   return next;
+}
+
+export function mutate(action: WorkspaceAction): Promise<WorkspaceSnapshot> {
+  return serializeCcr(() => apply(action));
 }
 
 async function apply(action: WorkspaceAction) {
