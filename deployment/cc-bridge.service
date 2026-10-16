@@ -1,0 +1,28 @@
+[Unit]
+Description=CC Bridge web application
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=cc-bridge
+Group=cc-bridge
+WorkingDirectory=/var/lib/cc-bridge/current
+ExecStart=/opt/node-v24.11.0-linux-x64/bin/node server.js
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=HOSTNAME=0.0.0.0
+Environment=PORT=8354
+EnvironmentFile=-/etc/cc-bridge/workspace.env
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

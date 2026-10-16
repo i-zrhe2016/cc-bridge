@@ -1,5 +1,6 @@
 # Dependencies (installed inside Docker)
 node_modules/
+dev/shm/
 .pnpm-store/
 
 # Build outputs (generated during docker build)
@@ -75,3 +76,9 @@ AGENTS.md
 
 # Cleanup guide
 __CLEANUP__/
+
+# Preserve third-party licenses in distributed images
+!docs/
+docs/*
+!docs/licenses/
+!docs/licenses/**
