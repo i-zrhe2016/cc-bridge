@@ -1,0 +1,29 @@
+[Unit]
+Description=CCR backend for CC Bridge
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=cc-bridge-ccr
+Group=cc-bridge-ccr
+WorkingDirectory=/opt/cc-bridge-ccr
+ExecStart=/opt/node-v24.11.0-linux-x64/bin/node node_modules/@musistudio/claude-code-router/dist/main/cli.js serve --host 127.0.0.1 --port 3458 --no-open
+Environment=NODE_ENV=production
+Environment=CCR_INTERNAL_HOME_DIR=/var/lib/cc-bridge-ccr
+EnvironmentFile=/etc/cc-bridge/ccr.env
+StateDirectory=cc-bridge-ccr
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

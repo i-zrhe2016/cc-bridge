@@ -827,3 +827,7 @@
     scroll-behavior: auto !important;
   }
 }
+
+.landing-page .workspace-entry { max-width: 1240px; margin: 18px auto -30px; padding: 0 36px; text-align: end; font-size: 12px; color: #666; }
+.landing-page .workspace-entry a { text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 700px) { .landing-page .workspace-entry { padding-inline: 22px; margin-bottom: -20px; } }

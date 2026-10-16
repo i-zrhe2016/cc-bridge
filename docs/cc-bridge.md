@@ -1,29 +1,41 @@
-# 开发与认证边界
+# 开发与认证说明
+
+真实后端模式现已实现，见 [CCR 接入说明](ccr-integration.md)。配置 `CCR_MANAGEMENT_URL` 后，工作台使用独立管理口令和 CCR 原生持久化接口；以下模拟流程仅描述未配置后端的默认模式。Google 登录仍为演示。
 
 ## 页面组织
 
-首页使用 `src/features/landing` 的 React 组件、翻译数据和限定在 `.landing-page` 内的 CSS，避免影响模板组件。语言优先级为已保存选择、浏览器偏好、英文；初次服务端输出为简体中文。剪贴板不可用时选中配置并显示手动复制提示。
+官网位于 `src/features/landing`，保留内容、10 种语言和配置复制功能。语言优先采用已保存选择，其次浏览器偏好，最后英文；服务端初始内容为简体中文。剪贴板不可用时选中配置并提示手动复制。
 
-登录页位于 `/auth/sign-in`，小于 1024px 时使用单栏。Google 登录与注册共用一个入口，`/auth/sign-up` 及其子路径均返回该入口。新页面首版使用简体中文。Logo 和「返回首页」链接指向 `/`。
+`/auth/sign-in` 使用 ixartz/SaaS-Boilerplate 的居中容器、shadcn 按钮及主题，提供 CC Bridge 品牌的 Google 登录注册统一入口。`/auth`、`/auth/sign-up` 及其子路径、`/sign-in` 和 `/sign-up` 及其子路径均重定向至该入口。登录页固定简体中文，Logo 与「返回首页」指向 `/`。
 
-公共根布局不初始化 Clerk，不加载外部字体；模板的后台 Provider、主题、Query 和 Nuqs 集成保留在后台布局中。公共页面不会因缺少认证密钥而弹出 Clerk 开发配置窗口。Sentry 仅在配置 DSN 且未显式禁用时启用。
+旧 `/dashboard/overview`、`/dashboard/profile` 等子页面、`/api/users/*` 和 `/api/products/*` 已删除，返回 404。项目没有认证中间件、认证 API 或 OAuth 回调。
 
-## 当前认证状态
+## 模拟流程
 
-`GoogleContinueButton` 的 `handleGoogleContinue` 是后续 OAuth 接入位置。目前仅在 `role=status` 的提示区显示即将开放文案，重复点击保持单条提示。
+`GoogleContinueButton` 仅使用组件状态和本地计时器：初始 → 约 800 毫秒加载 → 成功提示。加载期间按钮禁用，处理函数也拒绝重复触发。卸载组件时清理计时器。成功后留在原页，可重新演示，刷新后恢复初始状态。
 
-`src/lib/auth-config.ts` 检查 Clerk 的公开密钥和服务端密钥。两者未同时配置时，代理层将 `/dashboard` 和所有后台子路由重定向至登录页；模板 API 返回 503，避免访问或修改演示数据。后台布局也在调用 `auth.protect()` 前检查配置。
+成功文案：模拟登录成功；首次使用将自动注册。本演示未创建账号或登录会话。
 
-配置两项密钥不会启用本期 Google 按钮，真实认证接入仍需后续实现和验收。不得把密钥放入浏览器代码或提交到 Git。
+不初始化 Google 或 Clerk SDK，不发起请求、不打开 OAuth 窗口、不创建账号、不写 Cookie、localStorage 或 sessionStorage。只有官网语言选择继续使用已有本地偏好存储。即使运行环境配置了旧 Clerk/Sentry 变量，也不会启用相关服务。
 
-## 后续真实接入
+## 运行与验证
 
-沿用模板 Clerk 集成，配置 Google 为唯一登录方式，连接统一按钮、授权回调和会话。验证新用户首次授权、已有用户登录、取消与失败、退出及后台/API 权限后，再开放后台。当前不实现账号库、OAuth 回调或任何生产登录能力。
+使用 Node.js 24 与 Bun。`dev`、`build` 直接运行 Next.js Webpack，无数据库或迁移步骤，无环境变量和外部字体要求。Docker 构建支持 `BUILD_STANDALONE=true`。
 
-环境变量示例见 `env.example.txt`。官网入口已指向 `/auth/sign-in`，接入指南仍保留在 `/#start`。
+执行 `bun run typecheck`、`bun run lint`、`bun run build`，再执行 `bun run test:e2e`。Playwright 使用 3100 端口的生产服务，验证模拟状态、无认证请求和存储、兼容入口、旧路由移除、多语言、复制及响应式布局。
 
-## 验证与运行方式
+## 用户工作台原型
 
-`bun run dev` 与 `bun run build` 使用 Next.js 的 Webpack 模式，兼容依赖目录位于其他挂载点的开发环境。根布局使用本地系统字体，构建无需请求 Google Fonts。
+`/dashboard` 是公开的简体中文交互原型：首页十种语言提供对应的体验入口，登录页保持原有模拟流程。工作台支持一条 GPT 上游连接、一个模型和一枚演示桥接密钥。连接保存仅表示页面状态更新，不代表连通性验证。
 
-`bun run test:e2e` 使用已构建的生产产物，启动端口 3100 的独立服务并清空认证密钥。测试覆盖 Google 按钮无授权请求/会话副作用、入口重定向、未配置时的 API 拒绝、10 种语言、复制及其降级、375/768/1440px 布局。需要先运行 `bunx playwright install chromium` 和 `bun run build`。
+连接编辑时密钥留空保留掩码，输入的原始上游密钥在保存或取消后清空。重置、撤销密钥以及删除连接均需确认；删除连接同时清除密钥和配置。接入配置对模型 ID 做 shell 单引号转义，使用 `.invalid` 演示网关地址和 `ccb_demo_` 密钥。剪贴板不可用时选择内容供手动复制。
+
+模拟数据层位于 `src/features/workspace/demo-service.ts`，定义连接、桥接密钥和用量的业务类型，页面不依赖底层路由项目的数据格式。所有状态仅在当前页面内存中，不发送上游密钥、不写 Cookie 或浏览器持久化存储。用量为固定七天示例，与连接操作无关。
+
+真实模式调用链：客户端 → CC Bridge 服务端 → 原版 CCR 3.1.3 → GPT 上游。CCR 为独立服务，不修改上游源码；内部管理端口不公开。当前支持单管理员管理一条连接，不提供多用户隔离。具体接口、部署和验证边界以 [CCR 接入说明](ccr-integration.md) 为准。
+
+工作台测试覆盖保存、地址校验、编辑、密钥重置与撤销、删除联动、复制回退、刷新清空、网络与存储副作用，以及 375/768/1440px 布局。执行检查命令与上文一致。
+
+### 工作台四栏导航
+
+`/dashboard` 内默认展示 GPT 连接，可切换桥接密钥、接入配置和用量概览；不增加 URL 或接口。导航、Header 与 Card 基于 Apptension SaaS Boilerplate 移植，来源见模板说明。桌面采用 224px 左侧导航，700px 以下采用顶部四项按钮。各栏共享父组件状态，切换保留表单草稿和已生成配置，刷新后清空并返回 GPT 连接。保存连接和生成密钥后可通过「下一步」进入后续栏目，未满足条件时提供前一步入口。

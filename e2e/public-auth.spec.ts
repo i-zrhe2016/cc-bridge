@@ -1,45 +1,59 @@
 import { expect, test } from '@playwright/test';
 import translations from '../src/features/landing/translations.json';
 
-test('public Google entry works without Clerk and never starts an OAuth request', async ({
-  page
-}) => {
+test('Google login and registration are local simulations without authentication requests or sessions', async ({ page }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto('/auth/sign-in');
   await expect(page).toHaveTitle('登录 | CC Bridge');
   await expect(page.getByRole('heading', { name: '欢迎使用 CC Bridge' })).toBeVisible();
   await expect(page.locator('input')).toHaveCount(0);
-  await expect(page.locator('script[src*="clerk"]')).toHaveCount(0);
+  await expect(page.locator('script[src*="clerk"], script[src*="accounts.google"]')).toHaveCount(0);
   await page.waitForLoadState('networkidle');
+  await page.clock.install();
   const requests: string[] = [];
-  page.on('request', (request) => requests.push(request.url()));
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    // Next.js may prefetch the homepage after networkidle. These GETs are
+    // navigation assets, not requests made by the simulated login action.
+    const isNavigationAsset = request.method() === 'GET'
+      && url.origin === new URL(page.url()).origin
+      && (url.pathname.startsWith('/_next/static/') || (url.pathname === '/' && url.searchParams.has('_rsc')));
+    if (!isNavigationAsset) {
+      requests.push(request.url());
+    }
+  });
   const button = page.getByRole('button', { name: '使用 Google 继续' });
-  await button.click();
-  await button.click();
   await button.focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('status')).toHaveText('Google 登录即将开放，请稍后再试。');
+  const loading = page.getByRole('button', { name: '正在模拟登录…' });
+  await expect(loading).toBeDisabled();
+  await expect(loading).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByRole('status')).toHaveText('正在模拟 Google 登录，请稍候…');
+  await loading.evaluate((element) => {
+    (element as HTMLButtonElement).click();
+    (element as HTMLButtonElement).click();
+  });
+  await page.clock.runFor(800);
+  await expect(button).toBeEnabled();
+  await expect(page.getByRole('status')).toHaveText('模拟登录成功；首次使用将自动注册。本演示未创建账号或登录会话。');
   await expect(page.getByRole('status').locator('p')).toHaveCount(1);
-  await expect(button).toBeFocused();
+  await button.focus();
+  expect(await button.evaluate(element => getComputedStyle(element).boxShadow)).not.toBe('none');
   await expect(page).toHaveURL('/auth/sign-in');
-  expect(await button.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
   expect(await page.context().cookies()).toEqual([]);
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
+  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+  expect(page.context().pages()).toHaveLength(1);
   expect(requests).toEqual([]);
+  await page.reload();
+  await expect(button).toBeEnabled();
+  await expect(page.getByRole('status')).toBeEmpty();
   expect(errors).toEqual([]);
 });
 
-test('registration and every dashboard entry return to the shared sign-in page', async ({
-  request
-}) => {
-  for (const path of [
-    '/auth/sign-up',
-    '/auth/sign-up/verify-email-address',
-    '/dashboard',
-    '/dashboard/overview',
-    '/dashboard/profile'
-  ]) {
+test('all registration and template authentication URLs use the shared entry', async ({ request }) => {
+  for (const path of ['/auth', '/auth/sign-up', '/auth/sign-up/verify-email-address', '/sign-in', '/sign-in/callback', '/sign-up', '/sign-up/verify-email-address']) {
     const response = await request.get(path, { maxRedirects: 0 });
     expect(response.status(), path).toBe(307);
     expect(response.headers().location, path).toMatch(/\/auth\/sign-in$/);
@@ -49,28 +63,28 @@ test('registration and every dashboard entry return to the shared sign-in page',
   expect(await login.text()).toContain('欢迎使用 CC Bridge');
 });
 
-test('unconfigured template APIs refuse reads and mutations', async ({ request }) => {
-  for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
-    const response = await request.fetch('/api/products', {
-      method,
-      data: { title: 'must not be created' }
-    });
-    expect(response.status()).toBe(503);
-    expect(await response.json()).toEqual({ error: 'Authentication is not configured.' });
+test('old dashboard and example APIs have been removed', async ({ request }) => {
+  for (const path of ['/dashboard/overview', '/dashboard/profile', '/api/products', '/api/users']) {
+    const response = await request.get(path);
+    expect(response.status(), path).toBe(404);
+  }
+  for (const method of ['POST', 'PUT', 'DELETE']) {
+    const response = await request.fetch('/api/products', { method, data: { title: 'must not be created' } });
+    expect(response.status()).toBe(404);
   }
 });
 
 test('homepage retains all languages, saved preference, anchors and authentication links', async ({
-  page
+  page,
 }) => {
   const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   const selector = page.locator('#language');
   await expect(selector).toHaveValue('zh-Hans');
   for (const [language, content] of Object.entries(translations)) {
     await selector.selectOption(language);
-    await expect(page.locator('h1')).toHaveText(content[5] + content[6]);
+    await expect(page.locator('h1')).toHaveText(`${content[5]}${content[6]}`);
     await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
   }
   await page.reload();
@@ -101,13 +115,13 @@ test('configuration copy and clipboard fallback both remain usable', async ({ pa
   expect(clipboard).toContain('ANTHROPIC_MODEL="your-gpt-model"');
   await page.evaluate(() => {
     Object.defineProperty(navigator.clipboard, 'writeText', {
-      value: () => Promise.reject(new Error('Clipboard unavailable'))
+      value: () => Promise.reject(new Error('Clipboard unavailable')),
     });
   });
   await copy.click();
   await expect(page.getByRole('status')).toHaveText('已选中配置，请手动复制');
   expect(await page.evaluate(() => window.getSelection()?.toString())).toContain(
-    'ANTHROPIC_BASE_URL='
+    'ANTHROPIC_BASE_URL=',
   );
 });
 
@@ -116,18 +130,16 @@ for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/auth/sign-in');
     await expect(page.getByRole('button', { name: '使用 Google 继续' })).toBeVisible();
-    const aside = page.getByRole('complementary');
-    if (width >= 1024) await expect(aside).toBeVisible();
-    else await expect(aside).toBeHidden();
+    await expect(page.getByRole('region', { name: '欢迎使用 CC Bridge' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true
+      true,
     );
     await page.screenshot({ path: `test-results/sign-in-${width}.png`, fullPage: true });
     await page.goto('/');
     await expect(page.locator('h1')).toBeVisible();
     await expect(page.getByRole('link', { name: '登录', exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true
+      true,
     );
     await page.screenshot({ path: `test-results/home-${width}.png`, fullPage: true });
     if (width < 1024) {

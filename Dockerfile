@@ -2,7 +2,7 @@
 # Stage 1: Install dependencies
 # ============================================
 
-ARG NODE_VERSION=22-slim
+ARG NODE_VERSION=24-slim
 
 FROM node:${NODE_VERSION} AS dependencies
 
@@ -32,12 +32,6 @@ COPY . .
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build-time env vars — override these with --build-arg or in compose.yml
-ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-ARG NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in
-ARG NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up
-ARG NEXT_PUBLIC_SENTRY_DISABLED=true
-
 ENV BUILD_STANDALONE=true
 
 RUN npm run build
@@ -57,6 +51,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy public assets
 COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/LICENSE ./LICENSE
+COPY --from=builder --chown=node:node /app/docs/licenses ./licenses
 
 # Create .next dir with correct permissions for prerender cache
 RUN mkdir .next && chown node:node .next

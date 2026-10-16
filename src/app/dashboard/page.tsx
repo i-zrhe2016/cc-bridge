@@ -1,12 +1,12 @@
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+import LiveWorkspace from '@/features/workspace/live-workspace';
+import Workspace from '@/features/workspace/workspace';
+import { liveWorkspaceEnabled } from '@/server/workspace-auth';
 
-export default async function Dashboard() {
-  const { userId } = await auth();
+export const dynamic = 'force-dynamic';
 
-  if (!userId) {
-    return redirect('/auth/sign-in');
-  } else {
-    redirect('/dashboard/overview');
-  }
+export const metadata: Metadata = { title: '用户工作台', robots: { index: false, follow: false } };
+
+export default function DashboardPage() {
+  return liveWorkspaceEnabled() ? <LiveWorkspace /> : <Workspace />;
 }
