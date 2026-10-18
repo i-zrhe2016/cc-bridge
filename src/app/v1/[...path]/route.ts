@@ -1,4 +1,6 @@
+import { Buffer } from 'node:buffer';
 import { internalUrl, WorkspaceError } from '@/server/ccr';
+import { gatewayAccess } from '@/server/gateway-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +19,7 @@ async function forward(request: Request, context: Context) {
   if (!((request.method === 'POST' && ['messages', 'messages/count_tokens'].includes(path)) || (request.method === 'GET' && path === 'models'))) {
     return failure(404, '接口不存在。');
   }
-  // CCR authenticates its own client keys; never forward workspace cookies or management credentials.
+  // Only a user's owned CCR credential and explicit model may reach the private gateway.
   const headers = new Headers();
   for (const name of ['authorization', 'x-api-key', 'content-type', 'anthropic-version', 'anthropic-beta', 'user-agent', 'x-claude-code-session-id', 'x-claude-session-id']) {
     const value = request.headers.get(name);
@@ -25,12 +27,46 @@ async function forward(request: Request, context: Context) {
       headers.set(name, value);
     }
   }
-  if (!headers.has('authorization') && !headers.has('x-api-key')) {
-    return failure(401, '请提供访问密钥。');
-  }
   try {
+    const access = await gatewayAccess(request);
+    if (request.method === 'GET') {
+      return Response.json({ object: 'list', data: [{ id: access.selector, object: 'model', display_name: access.model }], has_more: false, first_id: access.selector, last_id: access.selector }, { headers: { 'Cache-Control': 'no-store' } });
+    }
+    const reader = request.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        size += value.byteLength;
+        if (size > 16 * 1024 * 1024) {
+          await reader.cancel();
+          return failure(413, '请求内容过大。');
+        }
+        chunks.push(value);
+      }
+    }
+    const text = Buffer.concat(chunks).toString('utf8');
+    let body;
+    try {
+      body = JSON.parse(text);
+    }
+    catch {
+      return failure(400, '请求格式不正确。');
+    }
+    if (!body || body.model !== access.selector) {
+      return failure(403, '该密钥无权使用此模型。');
+    }
+    // These headers are generated here, never accepted from the public request.
+    headers.set('x-target-provider', access.provider);
+    headers.set('x-target-model', access.model);
+    headers.set('content-type', 'application/json');
+    headers.set('authorization', `Bearer ${access.token}`);
+    headers.delete('x-api-key');
     const destination = new URL(`/v1/${path}`, internalUrl('CCR_GATEWAY_URL'));
-    destination.search = new URL(request.url).search;
     const init: RequestInit & { duplex?: 'half' } = {
       method: request.method,
       headers,
@@ -39,7 +75,7 @@ async function forward(request: Request, context: Context) {
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(600_000)]),
     };
     if (request.method === 'POST') {
-      init.body = request.body;
+      init.body = JSON.stringify(body);
       init.duplex = 'half';
     }
     const upstream = await fetch(destination, init);

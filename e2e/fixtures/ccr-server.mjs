@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { appendFileSync, existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -64,14 +65,31 @@ const child = spawn(process.execPath, [cli, 'serve', '--host', '127.0.0.1', '--p
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let logs = '';
-child.stdout.on('data', chunk => logs += chunk);
-child.stderr.on('data', chunk => logs += chunk);
+const logPath = path.join(tmpdir(), `ccr-fixture-${process.pid}.log`);
+function capture(chunk) {
+  // Keep diagnostics bounded even when a native process repeatedly restarts.
+  logs = (logs + chunk).slice(-4 * 1024 * 1024);
+  if (logs.length < 4 * 1024 * 1024) {
+    appendFileSync(logPath, String(chunk).replaceAll(token, '[redacted]'));
+  }
+}
+child.stdout.on('data', capture);
+child.stderr.on('data', capture);
 let stopping = false;
 async function stop() {
   if (stopping) {
     return;
   }
   stopping = true;
+  if (child.exitCode === null) {
+    try {
+      await rpc('stopGateway');
+    }
+    catch (error) {
+      capture(`Gateway cleanup failed: ${error.message}\n`);
+    }
+  }
+  await writeFile(logPath, logs.replaceAll(token, '[redacted]'));
   child.kill('SIGTERM');
   await new Promise((resolve) => {
     child.once('exit', resolve);
@@ -80,14 +98,33 @@ async function stop() {
       resolve();
     }, 5000).unref();
   });
+  const deadline = Date.now() + 5000;
+  while (await Promise.all([3466, 3467].map(portOpen)).then(values => values.some(Boolean))) {
+    if (Date.now() >= deadline) {
+      throw new Error('Test gateway ports remained open after shutdown');
+    }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
   mock.closeAllConnections();
   mock.close();
   await rm(home, { recursive: true, force: true });
 }
+function portOpen(port) {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: '127.0.0.1', port });
+    const finish = (open) => {
+      socket.destroy();
+      resolve(open);
+    };
+    socket.once('connect', () => finish(true));
+    socket.once('error', () => finish(false));
+    socket.setTimeout(200, () => finish(true));
+  });
+}
 process.on('SIGTERM', () => void stop());
 process.on('SIGINT', () => void stop());
 async function rpc(method, args = []) {
-  const response = await fetch('http://127.0.0.1:3468/api/ccr/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ccr-web-auth': token }, body: JSON.stringify({ method, args }) });
+  const response = await fetch('http://127.0.0.1:3468/api/ccr/rpc', { signal: AbortSignal.timeout(5000), method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ccr-web-auth': token }, body: JSON.stringify({ method, args }) });
   const data = await response.json();
   if (!response.ok || !data.ok) {
     throw new Error(JSON.stringify(data));
@@ -115,6 +152,7 @@ try {
   config.PORT = 3466;
   config.gateway = { ...config.gateway, host: '127.0.0.1', port: 3466, coreHost: '127.0.0.1', corePort: 3467 };
   config.profile.enabled = false;
+  config.Router.builtInRules = { 'claude-code': { enabled: false }, 'codex': { enabled: false } };
   config.observability.requestLogBodyCapture = 'off';
   await rpc('saveConfig', [config, { applyProfile: false }]);
   const ready = createServer((_request, response) => response.end('ready'));

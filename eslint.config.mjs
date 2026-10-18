@@ -18,6 +18,10 @@ export default antfu({
     'jsdoc/require-returns': 'off',
   },
 }, {
+  files: ['tests/clerk-principal.test.ts'],
+  // This suite intentionally uses Node's built-in runner (test:auth).
+  rules: { 'test/no-import-node-test': 'off' },
+}, {
   files: ['e2e/fixtures/*.mjs'],
   // Standalone Node harnesses use module-level await and JavaScript variable analysis.
   rules: {

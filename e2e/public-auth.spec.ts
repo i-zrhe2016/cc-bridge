@@ -1,55 +1,15 @@
 import { expect, test } from '@playwright/test';
 import translations from '../src/features/landing/translations.json';
 
-test('Google login and registration are local simulations without authentication requests or sessions', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
+test('Google authentication fails clearly when credentials are missing', async ({ page, request }) => {
   await page.goto('/auth/sign-in');
   await expect(page).toHaveTitle('登录 | CC Bridge');
   await expect(page.getByRole('heading', { name: '欢迎使用 CC Bridge' })).toBeVisible();
   await expect(page.locator('input')).toHaveCount(0);
-  await expect(page.locator('script[src*="clerk"], script[src*="accounts.google"]')).toHaveCount(0);
-  await page.waitForLoadState('networkidle');
-  await page.clock.install();
-  const requests: string[] = [];
-  page.on('request', (request) => {
-    const url = new URL(request.url());
-    // Next.js may prefetch the homepage after networkidle. These GETs are
-    // navigation assets, not requests made by the simulated login action.
-    const isNavigationAsset = request.method() === 'GET'
-      && url.origin === new URL(page.url()).origin
-      && (url.pathname.startsWith('/_next/static/') || (url.pathname === '/' && url.searchParams.has('_rsc')));
-    if (!isNavigationAsset) {
-      requests.push(request.url());
-    }
-  });
-  const button = page.getByRole('button', { name: '使用 Google 继续' });
-  await button.focus();
-  await page.keyboard.press('Enter');
-  const loading = page.getByRole('button', { name: '正在模拟登录…' });
-  await expect(loading).toBeDisabled();
-  await expect(loading).toHaveAttribute('aria-busy', 'true');
-  await expect(page.getByRole('status')).toHaveText('正在模拟 Google 登录，请稍候…');
-  await loading.evaluate((element) => {
-    (element as HTMLButtonElement).click();
-    (element as HTMLButtonElement).click();
-  });
-  await page.clock.runFor(800);
-  await expect(button).toBeEnabled();
-  await expect(page.getByRole('status')).toHaveText('模拟登录成功；首次使用将自动注册。本演示未创建账号或登录会话。');
-  await expect(page.getByRole('status').locator('p')).toHaveCount(1);
-  await button.focus();
-  expect(await button.evaluate(element => getComputedStyle(element).boxShadow)).not.toBe('none');
-  await expect(page).toHaveURL('/auth/sign-in');
+  await expect(page.getByRole('button', { name: '使用 Google 继续' })).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Google 登录尚未配置');
+  expect((await request.post('/api/auth/sign-in/social', { data: { provider: 'google' } })).status()).toBe(410);
   expect(await page.context().cookies()).toEqual([]);
-  expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([]);
-  expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
-  expect(page.context().pages()).toHaveLength(1);
-  expect(requests).toEqual([]);
-  await page.reload();
-  await expect(button).toBeEnabled();
-  await expect(page.getByRole('status')).toBeEmpty();
-  expect(errors).toEqual([]);
 });
 
 test('all registration and template authentication URLs use the shared entry', async ({ request }) => {

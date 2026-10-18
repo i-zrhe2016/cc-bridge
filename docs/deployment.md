@@ -1,12 +1,14 @@
 # 部署
 
-真实 CCR 后端的安装、环境变量和 systemd 配置见 [CCR 接入说明](ccr-integration.md)。以下无环境变量运行方式为演示模式；当前服务器已启用真实后端模式。
+当前代码已接入 Google 认证及 SQLite，部署新版本前须按 [Google 认证说明](google-auth.md) 配置 HTTPS、凭证、持久化目录并执行迁移。以下服务器发布记录描述的是旧版本，并不表示新认证已上线。
 
-使用 Node.js 24。未配置 CCR 时运行演示模式；真实工作台和管理后台分别使用独立口令，Google 登录入口仍为本地模拟。
+真实 CCR 后端的安装、环境变量和 systemd 配置见 [CCR 接入说明](ccr-integration.md)。新版本要求完整认证和后端环境；历史生产记录保留于下文。
+
+使用 Node.js 24。工作台仅用 Google 登录，管理后台使用独立运维口令。认证与 CCR 未配置时不回退演示。
 
 ## Vercel
 
-连接仓库，安装命令使用 `bun install --frozen-lockfile`，构建命令使用 `bun run build`。无需配置 Clerk 或数据库。
+当前 SQLite 与单机 CCR 部署不支持无持久盘的 Vercel Serverless。请使用持久化单机服务器或配置持久卷的容器。
 
 ## Docker
 
@@ -15,7 +17,7 @@ docker build -t cc-bridge .
 docker run --rm -p 3000:3000 cc-bridge
 ```
 
-也可使用 `docker build -f Dockerfile.bun -t cc-bridge .`。两个 Dockerfile 均设置 `BUILD_STANDALONE=true`，运行独立产物。
+也可使用 `docker build -f Dockerfile.bun -t cc-bridge .`。两个 Dockerfile 均设置 `BUILD_STANDALONE=true`，运行独立产物。以上仅启动镜像；启用工作台还需注入环境变量、挂载 SQLite 持久卷、单独执行认证迁移，并提供回环或私有网络 CCR。
 
 ## 普通服务器
 

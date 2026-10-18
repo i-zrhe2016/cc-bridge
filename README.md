@@ -1,40 +1,29 @@
 # CC Bridge
 
-已增加 CCR 3.1.3 真实后端接入。保留现有工作台，原样运行 CCR，通过服务端调用其原生接口管理连接、密钥和用量。配置方式、服务模板和联调测试见 [CCR 接入说明](docs/ccr-integration.md)。下文的模拟行为仅适用于未配置后端时。
+已增加 CCR 3.1.3 真实后端接入。保留现有工作台，原样运行 CCR，通过服务端调用其原生接口管理连接、密钥和用量。配置方式、服务模板和联调测试见 [CCR 接入说明](docs/ccr-integration.md)。用户工作台仅支持 Google 登录；认证或后端未配置时不开放演示，见 [Google 认证说明](docs/google-auth.md)。
 
 CC Bridge 将 GPT 接入 Claude Code。项目基于 [ixartz/SaaS-Boilerplate](https://github.com/ixartz/SaaS-Boilerplate) 的精简基础，使用 Next.js、React、TypeScript、Tailwind CSS v4 和 shadcn/ui。模板版本与许可见 [模板来源](docs/template-source.md)。
 
 新增独立管理后台 `/admin`：多连接、多密钥、用量汇总与网关控制，使用独立后台口令；配置与使用见 [管理后台说明](docs/admin.md)。
 
-## 本地运行
+## 本地运行与 Google 登录
 
-需要 Node.js 24 和 Bun，无需环境变量、认证密钥或数据库。
+需要 Node.js 24 和 Bun。仅支持 Google 登录注册，首次授权自动创建账号。配置 Clerk Google-only 实例、持久化数据库、CCR 和旧资源迁移见 [Google 认证说明](docs/google-auth.md)。
 
 ```bash
 bun install --frozen-lockfile
+# 将 deployment/auth.env.example 配置合并到 .env.local，填入所选 Clerk 实例 key
+bun run auth:migrate
 bun run dev
 ```
 
-打开 `http://localhost:3000`。
+打开 `http://localhost:3000`。未配置认证时登录按钮禁用，工作台不会开放免登录演示。
 
-```bash
-bun run typecheck
-bun run lint
-bun run build
-bun run start
-```
+- `/auth/sign-in`：统一 Google 登录注册入口；旧登录、注册路径继续重定向至这里。
+- `/dashboard`：登录后使用个人工作台，连接、密钥、模型访问及用量按用户隔离。
+- `/admin`：使用独立后台口令管理全局 CCR 资源，不授予普通 Google 用户后台权限。
 
-## 页面与模拟认证
-
-- `/`：保留 CC Bridge 官网、10 种语言及配置复制。
-- `/admin`：配置独立后台口令与 CCR 后启用的真实管理后台，未配置时显示未启用。
-- `/dashboard`：配置 CCR 时使用管理口令进入真实工作台；未配置时为无需登录的用户工作台原型，支持 GPT 连接、演示桥接密钥、配置复制与示例用量；状态仅在当前页面内存中，刷新重置，不发起模型请求。
-- `/auth/sign-in`：居中卡片式 Google 登录注册统一入口。
-- `/auth`、`/auth/sign-up`、`/sign-in`、`/sign-up`：重定向至统一入口，兼容登录注册子路径。
-
-点击「使用 Google 继续」后显示约 800 毫秒加载状态，再显示模拟成功提示。不会连接 Google、调用认证 API、保存账号或创建会话；刷新后恢复初始状态。此页面不是可用于生产的认证系统。
-
-旧模板示例后台和示例 API、Clerk、数据库、组织管理及监控已移除；新管理后台使用独立口令认证与 CCR 持久化。启动和构建不执行数据库迁移，也不加载外部字体。
+应用账号与归属保存于 SQLite，认证会话由 Clerk 管理，上游连接与用量保存在 CCR。构建不执行数据库迁移，不需要 Clerk key。生产部署须先配置所选 Clerk 实例、Google-only 策略与 HTTPS 域名。
 
 ## 浏览器验收
 
@@ -44,12 +33,10 @@ bun run build
 bun run test:e2e
 ```
 
-测试启动独立生产服务（端口 3100），覆盖模拟登录、无请求与存储副作用、路由兼容、旧页面移除、官网多语言、配置复制和 375/768/1440px 布局。截图保存在 `test-results/`。
+页面测试启动独立生产服务（端口 3100），覆盖未配置认证提示、路由兼容、旧页面移除、官网多语言、配置复制和 375/768/1440px 布局。真实会话和多用户隔离使用 `bun run test:ccr` 验证。截图保存在 `test-results/`。
 
 实现边界见 [开发与认证说明](docs/cc-bridge.md)。
 
-## 演示模式工作台
+## 工作台来源
 
-工作台前端移植自 Apptension SaaS Boilerplate 的布局、侧栏、Header 和 Card，适配现有 Next.js。左侧提供 GPT 连接、桥接密钥、接入配置、用量概览四栏，手机端显示顶部四项按钮。来源及适配说明见 [模板来源](docs/template-source.md)。
-
-从官网「体验工作台」或 `/dashboard` 进入。请使用测试密钥；保存后只保留掩码，上游密钥不会进入 Claude Code 配置。桥接密钥与网关地址均为演示值，不能真实调用。当前不接入认证、数据库或真实路由服务。详细边界见 [开发说明](docs/cc-bridge.md)。
+工作台布局移植自 Apptension SaaS Boilerplate，来源及适配说明见 [模板来源](docs/template-source.md)。原型的演示服务仍保留在代码中供组件参考，公开 `/dashboard` 已统一使用 Google 会话和真实后端。

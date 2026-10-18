@@ -1,12 +1,13 @@
 import type { APIRequestContext } from '@playwright/test';
-import { expect as baseExpect, test } from '@playwright/test';
+import { expect as baseExpect } from '@playwright/test';
+import { test } from './fixtures/ccr-test';
 
-test.skip(({ baseURL }) => baseURL !== 'http://127.0.0.1:3110', 'Run with bun run test:ccr');
+test.skip(({ baseURL }) => baseURL !== 'http://localhost:3110', 'Run with bun run test:ccr');
 test.setTimeout(240_000);
 test.use({ actionTimeout: 20_000 });
 const expect = baseExpect.configure({ timeout: 20_000 });
 
-const origin = 'http://127.0.0.1:3110';
+const origin = 'http://localhost:3110';
 const operationsToken = 'integration-only-operations-admin-token';
 
 async function rpc(request: APIRequestContext, method: string, args: unknown[] = []) {
@@ -78,7 +79,10 @@ test('independent admin manages providers, keys, usage and gateway without break
     await rpc(request, 'saveConfig', [config, { applyProfile: false }]);
     const id = stale.providers.find((provider: { name: string }) => provider.name === 'Admin GPT').id;
     expect((await authenticated.post('/api/admin/providers', { headers: { Origin: origin }, data: { action: 'toggle', id, enabled: false, revision: stale.revision } })).status()).toBe(409);
+    const refreshedProviders = page.waitForResponse(response => response.url().endsWith('/api/admin/providers') && response.request().method() === 'GET');
     await page.getByRole('button', { name: '刷新', exact: true }).click();
+    expect((await refreshedProviders).status()).toBe(200);
+    await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeEnabled();
     await row.getByRole('button', { name: '停用', exact: true }).click();
     await page.getByRole('button', { name: '确认停用连接', exact: true }).click();
     await expect(row.getByText('已停用', { exact: true })).toBeVisible();
@@ -103,7 +107,7 @@ test('independent admin manages providers, keys, usage and gateway without break
     expect(JSON.stringify(keys)).not.toMatch(new RegExp(`${first}|workspace-client-secret`));
     expect((await authenticated.post('/api/admin/keys', { headers: { Origin: origin }, data: { action: 'delete', id: 'cc-bridge-workspace-key', revision: keys.revision } })).status()).toBe(400);
     const data = { model: 'Admin GPT/test-gpt', max_tokens: 64, messages: [{ role: 'user', content: 'Hello' }] };
-    const modelRequest = (key: string) => request.post('/v1/messages', { headers: { Authorization: `Bearer ${key}` }, data });
+    const modelRequest = (key: string) => request.post('http://127.0.0.1:3466/v1/messages', { headers: { Authorization: `Bearer ${key}` }, data });
     expect((await modelRequest(first)).status()).toBe(200);
     await keyRow.getByRole('button', { name: '更换', exact: true }).click();
     await page.getByRole('button', { name: '确认更换密钥', exact: true }).click();
@@ -184,5 +188,8 @@ test('independent admin manages providers, keys, usage and gateway without break
     const current = await rpc(request, 'getConfig');
     await rpc(request, 'saveConfig', [{ ...original, configRevision: current.configRevision }, { applyProfile: false }]);
     await rpc(request, 'saveApiKeys', [original.APIKEYS]);
+    // The fixture starts stopped; do not leave a restarted native runtime for the next scenario.
+    await rpc(request, 'stopGateway');
+    await expect.poll(async () => (await rpc(request, 'getGatewayStatus')).state).toBe('stopped');
   }
 });

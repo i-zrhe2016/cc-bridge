@@ -3,7 +3,8 @@ import type { AdminKey, AdminOverview, AdminProvider, AdminUsage, GatewayState, 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { adminSignature } from './admin-auth';
-import { keyId, providerId, rpc, serializeCcr, WorkspaceError } from './ccr';
+import { rpc, serializeCcr, WorkspaceError } from './ccr';
+import { isWorkspaceKey, isWorkspaceProvider } from './database';
 
 const text = z.string().trim().min(1).max(200);
 const identifier = z.string().min(1).max(256);
@@ -54,7 +55,7 @@ function providerDto(provider: Provider): AdminProvider {
     endpoint: provider.api_base_url || '',
     models: provider.models || [],
     enabled: provider.enabled !== false,
-    owned: provider.id === providerId,
+    owned: isWorkspaceProvider(provider.id),
     editable: provider.type === 'openai_chat_completions',
     protocol: typeof provider.type === 'string' ? provider.type : 'unknown',
   };
@@ -67,7 +68,7 @@ function keyDtos(config: Config): AdminKey[] {
     createdAt: key.createdAt,
     expiresAt: key.expiresAt || null,
     active: !key.expiresAt || Date.parse(key.expiresAt) > Date.now(),
-    owned: key.id === keyId,
+    owned: isWorkspaceKey(key.id),
   }));
 }
 export async function listProviders(): Promise<ProviderList> {
@@ -114,7 +115,7 @@ export function mutateProviders(input: unknown): Promise<MutationResult> {
     if ('id' in data && data.id && !previous) {
       throw new WorkspaceError(404, '连接不存在。');
     }
-    if (previous?.id === providerId && data.action !== 'save') {
+    if (isWorkspaceProvider(previous?.id) && data.action !== 'save') {
       throw new WorkspaceError(400, '工作台专用连接不能在后台停用或删除。');
     }
     if (data.action === 'save') {
@@ -127,7 +128,7 @@ export function mutateProviders(input: unknown): Promise<MutationResult> {
       if (!previous && (!data.apiKey || config.Providers.some(item => item.name === data.name))) {
         throw new WorkspaceError(400, '请填写密钥，并使用未被占用的连接名称。');
       }
-      if (previous?.id === providerId && data.models.length !== 1) {
+      if (isWorkspaceProvider(previous?.id) && data.models.length !== 1) {
         throw new WorkspaceError(400, '工作台专用连接只支持一个模型。');
       }
       const provider: Provider = {
@@ -193,7 +194,7 @@ export function mutateKeys(input: unknown): Promise<MutationResult> {
         throw new WorkspaceError(404, '密钥不存在，请刷新列表。');
       }
       if (data.action === 'delete') {
-        if (key.id === keyId) {
+        if (isWorkspaceKey(key.id)) {
           throw new WorkspaceError(400, '工作台专用密钥不能在后台删除。');
         }
         if (config.APIKEYS.length === 1) {
@@ -206,8 +207,8 @@ export function mutateKeys(input: unknown): Promise<MutationResult> {
         key.expiresAt = new Date(Date.now() - 1000).toISOString();
       }
       else {
-        if (key.id === keyId && !config.Providers.some(item => item.id === providerId)) {
-          throw new WorkspaceError(400, '请先在工作台保存 GPT 连接。');
+        if (isWorkspaceKey(key.id)) {
+          throw new WorkspaceError(400, '请在所属用户工作台更换密钥。');
         }
         secret = `ccb_${randomBytes(32).toString('hex')}`;
         key.key = secret;
