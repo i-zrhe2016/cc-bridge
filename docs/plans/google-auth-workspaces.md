@@ -3,8 +3,8 @@
 - Plan ID: google-auth-workspaces
 - Branch: feat/google-auth-workspaces
 - Base: main @ 7169002
-- Status: ready_to_publish (final isolated snapshot verification passed)
-- PR: none yet; user authorized commit, push, PR creation and squash merge on 2026-10-18. Production deployment is not authorized.
+- Status: ready_to_merge (same-feature verification passed; unpublished to main)
+- PR: https://github.com/i-zrhe2016/cc-bridge/pull/4; user authorized commit, push, PR creation and squash merge on 2026-10-18. Production deployment is not authorized.
 - Ticket index: [GA-1](#ga-1-google-auth-and-workspace-isolation), [GA-2](#ga-2-clerk-authentication-replacement), [GA-3](#ga-3-lan-development-preview), [GA-4](#ga-4-enable-lan-workspace-backend)
 
 ## Accepted requirement
@@ -263,3 +263,6 @@ GA-1 local verification E73–E74 is a historical baseline. GA-2 Clerk replaceme
 
 - Plan PUB-03 finalsameartifactselfverificationPASS2026-10-18: isolatedworktree /tmp/cc-bridge-pr-verify-20261018 excludesprivate.env/dataandusespinnedshareddependencies. Lint0(31.3s),unit2PASS0(2s),productionbuild0(115.1s),typecheck0(12.5s),public10PASS5intentionalCCR-onlySKIP0(22.2stest/23.5scommand),fullCCR5PASS0(5.9m/354.8scommand). Allrunoncewithoutretriesorfailures; logs /tmp/cc-bridge-pr-logs/{lint,unit,build,typecheck,public,ccr}.log andresults.json. ThisisMAINselfverification, notindependentreview.
 - Plan PUB-04 currentroot/snapshotall54candidatefilesmatch; featuremanifestexcludingadministrativePlan /tmp/cc-bridge-pr-feature-manifest SHA256a91effe59c6653ea9c795a377df587ef47abc26af239b44b1878b26675da64ee (53featurefiles+base7169002). Candidatepath/literalcredentialscanPASS, private.env/SQLite/data/token/localAGENTSexcluded, diffcheckPASS. TestQualityGatePASS: realSDKcrypto/backendprofileboundary, same-scenarioidentityisolation, realnativeCRUD/JSON/tools/SSE/cancel/usage/adminassertionspreserved, priorfailureevidenceandunfixednativeCCRrevisionlimitationretained. Managedrefresh/remoteexit/paidmodelcompatibilityremainexplicitlimitations. Readyforauthorizedpublication, notproductiondeployment.
+
+- Plan PUB-05 publication: featurecommit85f0053pushednormallytoorigin/feat/google-auth-workspaces; PR https://github.com/i-zrhe2016/cc-bridge/pull/4 createdtargetingmainwithfinalbehavior/validation/limitsdescription. Staged54-filecredential/scopecheckPASS, all53featurefilebytesmatchtestedcopy; original5runtimeprocessidentitiesunchangedandtestportsclosed. ThisPlan-onlyfollowuprecorddoesnotchangefeaturescopeorvalidatedartifact; finalPRhead/diff/base/checkstatewillberevalidatedbeforematched-headsquashmerge.
+- Plan PUB-06 authorizedintegrationcontract: squashonePlanintoonecommittomainwithoutadminbypass; afterGitHubconfirmsmerge, fast-forwardsynchronizelocalmainwithoutreplacingprivate.env/data, cleanmergedbranches/temporaryverificationworktree, andcheckLAN/CCR/productionprocesses. VerifiedGitHubmergefactsdetermineeffectivePlan/Ticketcompletion; no postmerge-status-onlycommit.
