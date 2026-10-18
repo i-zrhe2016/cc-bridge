@@ -56,3 +56,9 @@ next-env.d.ts
 
 # Local runtime dependency copies
 /dev/shm/
+
+# Local authentication database
+/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

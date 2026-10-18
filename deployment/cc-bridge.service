@@ -22,7 +22,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-UMask=0027
+StateDirectory=cc-bridge
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

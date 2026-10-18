@@ -1,8 +1,9 @@
 import type { NextRequest } from 'next/server';
 import type { WorkspaceAction } from '@/features/workspace/contracts';
 import { NextResponse } from 'next/server';
+import { userSession } from '@/server/auth';
 import { mutate, snapshot, WorkspaceError } from '@/server/ccr';
-import { liveWorkspaceEnabled, sameOrigin, sessionCookie, validSession } from '@/server/workspace-auth';
+import { liveWorkspaceEnabled, sameOrigin } from '@/server/workspace-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +13,9 @@ async function handle(request: NextRequest, mutation: boolean) {
     if (!liveWorkspaceEnabled()) {
       throw new WorkspaceError(503, '工作台尚未启用。');
     }
-    if (!validSession(request.cookies.get(sessionCookie)?.value)) {
-      throw new WorkspaceError(401, '请使用管理口令进入工作台。');
+    const session = await userSession(request.headers);
+    if (!session) {
+      throw new WorkspaceError(401, '请使用 Google 登录工作台。');
     }
     if (mutation && !sameOrigin(request)) {
       throw new WorkspaceError(403, '请求来源不正确。');
@@ -34,10 +36,10 @@ async function handle(request: NextRequest, mutation: boolean) {
       if (!input || !['save', 'delete', 'rotate', 'revoke'].includes(input.action)) {
         throw new WorkspaceError(400, '不支持的操作。');
       }
-      value = await mutate(input as WorkspaceAction);
+      value = await mutate(session.user.id, input as WorkspaceAction);
     }
     else {
-      value = await snapshot();
+      value = await snapshot(session.user.id);
     }
     return NextResponse.json(value, { headers: { 'Cache-Control': 'no-store' } });
   }
