@@ -18,18 +18,6 @@ const loginLabels: Record<Language, string> = {
   'ar': 'تسجيل الدخول',
   'ko': '로그인',
 };
-const workspaceLabels: Record<Language, string> = {
-  'zh-Hans': '体验工作台',
-  'zh-Hant': '體驗工作台',
-  'en': 'Try workspace',
-  'es': 'Probar panel',
-  'fr': 'Essayer le tableau de bord',
-  'de': 'Arbeitsbereich testen',
-  'ja': 'ワークスペースを試す',
-  'pt': 'Experimentar painel',
-  'ar': 'جرّب مساحة العمل',
-  'ko': '워크스페이스 체험',
-};
 const messages: Record<
   Language,
   { copied: string; fallback: string; language: string; title: string }
@@ -117,19 +105,12 @@ export default function LandingPage() {
   const t = (index: number) => translations[language][index];
 
   useEffect(() => {
-    let saved: string | null = null;
-    try {
-      saved = localStorage.getItem('cc-bridge-language');
-    }
-    catch {
-      /* Browser storage may be unavailable. */
-    }
     const detected = (navigator.languages?.length ? navigator.languages : [navigator.language])
       .map(matchLanguage)
       .find(Boolean);
     // Browser preferences are only available after hydration.
     // eslint-disable-next-line react/set-state-in-effect
-    setLanguage(isLanguage(saved) ? saved : (detected ?? 'en'));
+    setLanguage(detected ?? 'en');
     return () => {
       clearTimeout(timerRef.current);
       document.documentElement.lang = 'zh-CN';
@@ -145,17 +126,6 @@ export default function LandingPage() {
       ?.setAttribute('content', `${translations[language][7]} ${translations[language][8]}`);
   }, [language]);
 
-  function changeLanguage(next: Language) {
-    setLanguage(next);
-    setCopied(false);
-    setToast('');
-    try {
-      localStorage.setItem('cc-bridge-language', next);
-    }
-    catch {
-      /* Language switching also works without storage. */
-    }
-  }
   async function copyConfiguration() {
     const configuration = configurationRef.current;
     if (!configuration) {
@@ -196,24 +166,6 @@ export default function LandingPage() {
             <a href="#features">{t(0)}</a>
             <a href="#start">{t(1)}</a>
             <a href="#faq">{t(2)}</a>
-            <select
-              id="language"
-              className="language"
-              aria-label={messages[language].language}
-              value={language}
-              onChange={event => changeLanguage(event.target.value as Language)}
-            >
-              <option value="en">English</option>
-              <option value="zh-Hans">简体中文</option>
-              <option value="zh-Hant">繁體中文</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-              <option value="ja">日本語</option>
-              <option value="pt">Português</option>
-              <option value="ar">العربية</option>
-              <option value="ko">한국어</option>
-            </select>
             <Link href="/auth/sign-in" className="login-link">
               {loginLabels[language]}
             </Link>
@@ -225,13 +177,6 @@ export default function LandingPage() {
       </header>
       {'\n'}
       <main>
-        <div className="workspace-entry">
-          <Link href="/dashboard">
-            {workspaceLabels[language]}
-            {' '}
-            ↗
-          </Link>
-        </div>
         <section className="hero">
           <div className="eyebrow">
             <span className="dot"></span>
@@ -267,12 +212,12 @@ export default function LandingPage() {
               <span>{t(12)}</span>
               <span className="live">{t(13)}</span>
             </div>
-            <div className="flow">
+            <div className="flow" tabIndex={0} role="region" aria-label={t(12)}>
               <div className="endpoint">
-                <strong>⌘ Claude Code</strong>
+                <strong><span className="endpoint-icon" aria-hidden="true">⌘</span>Claude Code</strong>
                 <small>Anthropic Messages</small>
               </div>
-              <div className="connector">
+              <div className="connector connector-request">
                 REQUEST
                 <b>→</b>
               </div>
@@ -280,12 +225,12 @@ export default function LandingPage() {
                 <strong>CC Bridge</strong>
                 <small>{t(14)}</small>
               </div>
-              <div className="connector">
+              <div className="connector connector-forward">
                 FORWARD
                 <b>→</b>
               </div>
               <div className="endpoint">
-                <strong>✳ GPT</strong>
+                <strong><span className="endpoint-icon target" aria-hidden="true">✳</span>GPT</strong>
                 <small>OpenAI API</small>
               </div>
             </div>
